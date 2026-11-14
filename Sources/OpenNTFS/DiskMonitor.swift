@@ -1,7 +1,9 @@
 import AppKit
 import DiskArbitration
 import Foundation
+#if canImport(FSKit)
 import FSKit
+#endif
 
 enum MountState: Equatable {
     case unmounted
@@ -75,7 +77,11 @@ final class DiskMonitor: ObservableObject {
     private var autoMountedOnce: Set<String> = []
 
     var autoMountRW: Bool { UserDefaults.standard.bool(forKey: Prefs.autoMountKey) }
-    var useFSKit: Bool { UserDefaults.standard.bool(forKey: Prefs.fskitKey) }
+    /// macOS 15.4 以下没有 FSKit，自动改用内核扩展方式
+    var useFSKit: Bool {
+        guard #available(macOS 15.4, *) else { return false }
+        return UserDefaults.standard.bool(forKey: Prefs.fskitKey)
+    }
 
     init() {
         // macOS 15.4+ 默认用 FSKit（无需内核扩展、无需降低安全性）
@@ -200,11 +206,8 @@ final class DiskMonitor: ObservableObject {
         }
         await perform(v) {
             let useFSKit = self.useFSKit
-            if useFSKit {
-                guard #available(macOS 15.4, *) else {
-                    self.lastError = "FSKit 读写挂载需要 macOS 15.4 或更新版本。"
-                    return
-                }
+            #if canImport(FSKit)
+            if useFSKit, #available(macOS 15.4, *) {
                 // 注意：FSClient.installedExtensions 在 macOS 27 上不会列出 macFUSE 的模块（实测只返回系统自带的），
                 // 所以「查不到」不代表不可用，只在系统明确报告「已禁用」时才拦截；其余情况交给挂载超时兜底。
                 if let extensions = try? await FSClient.shared.installedExtensions,
@@ -214,13 +217,14 @@ final class DiskMonitor: ObservableObject {
                     return
                 }
             }
+            #endif
             if useFSKit {
                 await self.mountWithFSKit(v)
                 return
             }
             let r = await Privileged.helper([
                 "mount", v.bsdName, v.name, String(getuid()), String(getgid()), "kext",
-            ])
+            ] + (NTFS3G.bundledPath.map { [$0] } ?? []))
             if r.ok {
                 self.lastMessage = "「\(v.displayName)」已以读写模式挂载"
             } else {
@@ -365,7 +369,7 @@ final class DiskMonitor: ObservableObject {
         case 16: return detail
         default:
             if detail.localizedCaseInsensitiveContains("fuse") && detail.localizedCaseInsensitiveContains("load") {
-                return "macFUSE 内核扩展未加载。Apple 芯片需要在「系统设置 → 隐私与安全性」中允许 macFUSE 的系统扩展（首次需进入恢复模式开启「降低安全性」），或在本应用设置中改用 FSKit 后端。\n\n详细信息：\(detail)"
+                return "macFUSE 内核扩展未加载。请在「系统设置 → 隐私与安全性」中允许 macFUSE 的系统扩展后重启（Apple 芯片还需先进入恢复模式开启「降低安全性」；Intel Mac 不需要）。macOS 15.4 及以上可在本应用设置中改用 FSKit 方式。\n\n详细信息：\(detail)"
             }
             return "操作失败（代码 \(r.status)）：\(detail)"
         }
@@ -394,7 +398,7 @@ struct Dependencies: Equatable {
 
     static func check() -> Dependencies {
         let fm = FileManager.default
-        let candidates = ["/opt/homebrew/bin/ntfs-3g", "/opt/homebrew/sbin/ntfs-3g",
+        let candidates = ["/opt/homebrew/bin/ntfs-3g", "/opt/homebrew/sbin/ntfs-3g",  // Apple 芯片 / Intel Homebrew
                           "/usr/local/bin/ntfs-3g", "/usr/local/sbin/ntfs-3g"]
         return Dependencies(
             macFUSE: fm.fileExists(atPath: "/Library/Filesystems/macfuse.fs"),

@@ -54,12 +54,18 @@ ping)
     ;;
 
 mount)
-    [ $# -eq 6 ] || die 2 "参数个数错误"
-    dev="$2"; uid="$4"; gid="$5"; backend="$6"
+    [ $# -eq 6 ] || [ $# -eq 7 ] || die 2 "参数个数错误"
+    dev="$2"; uid="$4"; gid="$5"; backend="$6"; bundled="${7:-}"
     valid_dev "$dev"; valid_num "$uid"; valid_num "$gid"
     case "$backend" in kext|fskit) ;; *) die 2 "非法后端: $backend" ;; esac
 
-    NTFS3G=$(find_ntfs3g) || die 3 "未找到 ntfs-3g，请先安装: brew install gromgit/fuse/ntfs-3g-mac"
+    if [ -n "$bundled" ]; then
+        case "$bundled" in /*/ntfs-3g) ;; *) die 2 "非法 ntfs-3g 路径: $bundled" ;; esac
+        [ -x "$bundled" ] || die 3 "找不到内置 ntfs-3g: $bundled"
+        NTFS3G="$bundled"
+    else
+        NTFS3G=$(find_ntfs3g) || die 3 "未找到 ntfs-3g，请先安装: brew install gromgit/fuse/ntfs-3g-mac"
+    fi
     [ -d /Library/Filesystems/macfuse.fs ] || die 4 "未找到 macFUSE，请先安装: brew install --cask macfuse"
 
     # 清理卷名：去掉 / 和 :，去掉开头的点，限制长度

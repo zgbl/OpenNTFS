@@ -29,6 +29,23 @@ pluginkit -e use -i io.macfuse.app.fsmodule.macfuse
 pluginkit -e use -i io.macfuse.app.fsmodule.macfuse-local
 ```
 
+### Intel Mac / older systems
+
+The same steps work on Intel Macs (the scripts detect Homebrew's prefix, `/usr/local`, automatically):
+
+```sh
+xcode-select --install                 # Command line tools, if not installed yet
+brew install --cask macfuse
+brew install autoconf automake libtool pkgconf gettext
+git clone https://github.com/zgbl/OpenNTFS.git && cd OpenNTFS
+./build.sh && cp -R build/OpenNTFS.app /Applications/
+```
+
+- **Requires macOS 14 or later.**
+- **macOS 15.4 and later**: uses FSKit mode by default, the same as on Apple Silicon.
+- **Below macOS 15.4** (no FSKit): switches to **kernel-extension mode** automatically. On first use, click "Allow" for the macFUSE system extension under "System Settings → Privacy & Security", then restart. **Intel Macs don't need to boot into Recovery to lower security.**
+- In either mode, also grant OpenNTFS **Full Disk Access**.
+
 ## How it works (FSKit mode)
 
 These rules were established by testing on macOS 27:
@@ -83,5 +100,5 @@ Tested on macOS 27.2.1, Apple Silicon, with macFUSE 5.5.0:
 
 - Always click "Eject" before unplugging the drive. Otherwise the NTFS file system can be damaged.
 - If Windows has "Fast Startup" turned on, the drive stays hibernated and can't be written. Turn it off in Windows, or hold Shift while clicking Shut Down.
-- The bundled ntfs-3g is arm64 only for now. Intel Macs need to build it themselves.
+- The bundled ntfs-3g is built for the architecture of the machine that compiles it. To use it on an Intel Mac, build it on an Intel Mac.
 - FSKit limitations (from the macFUSE release notes): sparse files aren't supported, and I/O performance is somewhat lower than the kernel-extension backend.

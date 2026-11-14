@@ -14,9 +14,11 @@ echo "$SHA  $SRC.tar.gz" | shasum -a 256 -c -
 rm -rf "$SRC" && tar xzf "$SRC.tar.gz"
 patch -d "$SRC" -p1 < openntfs-unprivileged-fskit.patch
 
-export PATH="/opt/homebrew/bin:$PATH"
+BREW=$(command -v brew || echo /opt/homebrew/bin/brew)
+HB=$("$BREW" --prefix)          # Apple 芯片: /opt/homebrew；Intel: /usr/local
+export PATH="$HB/bin:$PATH"
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
-export CPPFLAGS="-I/opt/homebrew/include" LDFLAGS="-L/opt/homebrew/lib -lintl"
+export CPPFLAGS="-I$HB/include" LDFLAGS="-L$HB/lib -lintl"
 cd "$SRC"
 ./autogen.sh >/dev/null
 ./configure --prefix="$DIST" --exec-prefix="$DIST" --with-fuse=external \
