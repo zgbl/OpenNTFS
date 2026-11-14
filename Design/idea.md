@@ -1,0 +1,1 @@
+给我写一个能代替 Paragon NTFS，给MAC  读取 NFTS 外接硬盘的软件。

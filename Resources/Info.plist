@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>OpenNTFS</string>
+    <key>CFBundleDisplayName</key><string>OpenNTFS</string>
+    <key>CFBundleIdentifier</key><string>local.openntfs.app</string>
+    <key>CFBundleExecutable</key><string>OpenNTFS</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSAppleEventsUsageDescription</key><string>用于在终端中运行依赖安装命令。</string>
+    <key>NSHumanReadableCopyright</key><string>基于 ntfs-3g 与 macFUSE 的开源 NTFS 读写工具</string>
+</dict>
+</plist>

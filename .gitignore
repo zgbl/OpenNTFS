@@ -1,0 +1,7 @@
+.build/
+build/
+*.app
+.DS_Store
+vendor/ntfs-3g-*/
+vendor/dist/
+vendor/*.tar.gz

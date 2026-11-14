@@ -1,0 +1,54 @@
+--- a/src/ntfs-3g.c	2026-09-28 05:59:59
++++ b/src/ntfs-3g.c	2026-11-14 02:38:04
+@@ -4445,6 +4445,17 @@
+ 		ctx->blkdev = TRUE;
+ #endif
+ 
++#ifdef __APPLE__
++	/*
++	 * OpenNTFS: macFUSE's FSKit backend only works when the FUSE server runs
++	 * as the console user (as root the mount hangs). "fuseblk" is a Linux
++	 * concept that macFUSE/FSKit doesn't need, so for unprivileged users we
++	 * don't treat the device as a fuseblk device. Device access is still
++	 * governed by the /dev node's permissions (granted by OpenNTFS's helper).
++	 */
++	if (getuid())
++		ctx->blkdev = FALSE;
++#endif
+ #ifndef FUSE_INTERNAL
+ 	if (getuid() && ctx->blkdev) {
+ 		ntfs_log_error("%s", unpriv_fuseblk_msg);
+--- a/libntfs-3g/unix_io.c	2026-09-28 05:59:59
++++ b/libntfs-3g/unix_io.c	2026-11-14 03:06:32
+@@ -140,6 +140,31 @@
+ 	 */ 
+ 	if (!NDevBlock(dev) && (flags & O_RDWR) == O_RDWR)
+ 		flags |= O_EXCL;
++#ifdef __APPLE__
++	/*
++	 * OpenNTFS: on macOS, open("/dev/fd/N") re-checks the permissions of the
++	 * underlying /dev node instead of duplicating the descriptor, so an
++	 * unprivileged ntfs-3g can't use a device fd opened for it by root.
++	 * Duplicate the inherited descriptor directly instead.
++	 */
++	if (!strncmp(dev->d_name, "/dev/fd/", 8)) {
++		char *end;
++		long n = strtol(dev->d_name + 8, &end, 10);
++		int fl;
++
++		if (*end || n < 0 || n > 65535
++		    || (fl = fcntl((int)n, F_GETFL)) == -1) {
++			err = EBADF;
++			goto err_out;
++		}
++		if ((flags & O_RDWR) == O_RDWR
++		    && (fl & O_ACCMODE) != O_RDWR) {
++			err = EROFS;
++			goto err_out;
++		}
++		*(int*)dev->d_private = dup((int)n);
++	} else
++#endif
+ 	*(int*)dev->d_private = open(dev->d_name, flags);
+ 	if (*(int*)dev->d_private == -1) {
+ 		err = errno;
