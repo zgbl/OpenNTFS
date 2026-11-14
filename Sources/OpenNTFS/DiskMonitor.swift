@@ -88,6 +88,8 @@ final class DiskMonitor: ObservableObject {
         if #available(macOS 15.4, *) {
             UserDefaults.standard.register(defaults: [Prefs.fskitKey: true])
         }
+        // 默认：插上外接 NTFS 磁盘就直接读写，且只在第一次询问密码
+        UserDefaults.standard.register(defaults: [Prefs.autoMountKey: true, Prefs.passwordlessKey: true])
         startDiskArbitration()
         // 兜底：定时刷新挂载状态（例如用户在终端里手动卸载）
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -409,4 +411,5 @@ struct Dependencies: Equatable {
 enum Prefs {
     static let autoMountKey = "autoMountRW"
     static let fskitKey = "useFSKitBackend"
+    static let passwordlessKey = "passwordless"
 }

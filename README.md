@@ -9,7 +9,7 @@ On macOS 15.4 and later it uses **macFUSE's FSKit backend**. That means no kerne
 - Uses DiskArbitration to detect NTFS drives as soon as they're plugged in. The menu bar shows each drive's capacity, model and current mode (read-only or read/write).
 - Enable read/write with one click, switch back to read-only, unmount, open in Finder, or eject safely.
 - Ships with a patched ntfs-3g, so the only thing you need to install is macFUSE.
-- Optional: mount external drives read/write automatically when they're plugged in. Optional: stop asking for a password. Launch at login.
+- **Read/write by default**: external NTFS drives switch to read/write as soon as they're plugged in. The admin password is asked **only once**: the first time, OpenNTFS installs a helper that only the current user can run without a password (`/etc/sudoers.d/openntfs`). Both can be turned off in Settings. Launch at login.
 - Clear error messages when Windows is hibernated, Fast Startup is on, or the volume wasn't shut down cleanly. In each case the drive falls back to read-only, so nothing gets damaged.
 - Command-line mode that runs the same code as the app: `OpenNTFS --list | --rw | --ro | --unmount | --eject <diskXsY>`
 

@@ -67,6 +67,12 @@ enum Privileged {
             && FileManager.default.fileExists(atPath: sudoersFile)
     }
 
+    /// 已安装的助手与 App 内置版本一致（App 升级后需要重新安装）
+    static var passwordlessUpToDate: Bool {
+        passwordlessInstalled
+            && FileManager.default.contentsEqual(atPath: installedHelper, andPath: bundledHelper)
+    }
+
     static var askpass: String {
         if let url = Bundle.main.url(forResource: "askpass", withExtension: "sh") { return url.path }
         return URL(fileURLWithPath: #filePath)
@@ -79,11 +85,20 @@ enum Privileged {
     /// 后者经由系统的 authtrampoline 中转，macOS 隐私保护会把「发起 App」算成 authtrampoline，
     /// 导致授予 OpenNTFS 的「完全磁盘访问权限」不生效，打开外接硬盘被拒（实测 macOS 27）。
     static func helper(_ args: [String]) async -> ShellResult {
+        // 默认只在第一次输入一次密码：顺便装好免密码配置，以后挂载不再询问
+        if UserDefaults.standard.bool(forKey: Prefs.passwordlessKey), !passwordlessUpToDate {
+            let r = await installPasswordless()
+            if r.status == -128 { return r }   // 用户取消了密码框，不再弹第二次
+        }
         if passwordlessInstalled {
             let r = await Shell.run("/usr/bin/sudo", ["-n", installedHelper] + args)
             if !isSudoAuthFailure(r) { return r }
         }
-        // sudo -A：通过 askpass 弹出密码框
+        return await sudoAskpass(args)
+    }
+
+    /// sudo -A：通过 askpass 弹出密码框，运行 App 内置的助手
+    private static func sudoAskpass(_ args: [String]) async -> ShellResult {
         let r = await Shell.run("/usr/bin/sudo", ["-A", bundledHelper] + args,
                                 env: ["SUDO_ASKPASS": askpass])
         if isSudoAuthFailure(r) {
@@ -100,55 +115,16 @@ enum Privileged {
             || r.stderr.contains("sudo: a terminal is required"))
     }
 
-    /// 通过 osascript 以管理员权限执行 shell 命令（系统会弹出密码框）。
-    static func runAsAdmin(_ shellCommand: String) async -> ShellResult {
-        // 把 stderr 合并进来，并把真实退出码放在最后一行，方便解析
-        let wrapped = "{ \(shellCommand) ; } 2>&1; echo \"__RC=$?\""
-        let escaped = wrapped
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let script = "do shell script \"\(escaped)\" with administrator privileges with prompt \"OpenNTFS 需要管理员权限来挂载 NTFS 磁盘。\""
-        let r = await Shell.run("/usr/bin/osascript", ["-e", script])
-        guard r.ok else {
-            // -128 = 用户点了取消
-            if r.stderr.contains("-128") {
-                return ShellResult(status: -128, stdout: "", stderr: "已取消授权")
-            }
-            return r
-        }
-        var lines = r.stdout.components(separatedBy: CharacterSet.newlines)
-        var status: Int32 = 0
-        if let last = lines.last, last.hasPrefix("__RC=") {
-            status = Int32(last.dropFirst(5)) ?? 1
-            lines.removeLast()
-        }
-        let text = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return status == 0
-            ? ShellResult(status: 0, stdout: text, stderr: "")
-            : ShellResult(status: status, stdout: "", stderr: text)
-    }
-
     /// 安装免密码配置：把助手复制到 root 拥有的系统目录，并只允许当前用户无密码执行这一个文件。
     static func installPasswordless() async -> ShellResult {
-        let user = NSUserName()
-        guard user.range(of: "^[A-Za-z0-9._-]+$", options: .regularExpression) != nil else {
-            return ShellResult(status: 2, stdout: "", stderr: "用户名包含不支持的字符")
-        }
-        let tmp = "/tmp/openntfs.sudoers.\(getpid())"
-        let line = "\(user) ALL=(root) NOPASSWD: \(installedHelper)"
-        let cmd = """
-        set -e; \
-        install -d -o root -g wheel -m 755 /Library/PrivilegedHelperTools; \
-        install -o root -g wheel -m 755 \(Shell.quote(bundledHelper)) \(installedHelper); \
-        printf '%s\\n' \(Shell.quote(line)) > \(tmp); \
-        visudo -cf \(tmp) >/dev/null; \
-        install -o root -g wheel -m 440 \(tmp) \(sudoersFile); \
-        rm -f \(tmp)
-        """
-        return await runAsAdmin(cmd)
+        await sudoAskpass(["setup-passwordless", NSUserName()])
     }
 
     static func uninstallPasswordless() async -> ShellResult {
-        await runAsAdmin("rm -f \(sudoersFile) \(installedHelper)")
+        if passwordlessInstalled {
+            let r = await Shell.run("/usr/bin/sudo", ["-n", installedHelper, "remove-passwordless"])
+            if r.ok { return r }
+        }
+        return await sudoAskpass(["remove-passwordless"])
     }
 }

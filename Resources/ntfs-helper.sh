@@ -6,6 +6,8 @@
 #   ntfs-helper.sh mount   <diskXsY> <卷名> <uid> <gid> <kext|fskit>
 #   ntfs-helper.sh unmount <diskXsY> <挂载点>
 #   ntfs-helper.sh fdmount <diskXsY> <uid> <gid> <ntfs-3g路径> <挂载点> <卷名>   # FSKit 读写挂载
+#   ntfs-helper.sh setup-passwordless <用户名>   # 安装本脚本到系统目录，并允许该用户免密码运行它
+#   ntfs-helper.sh remove-passwordless
 #
 # 退出码: 0 成功；2 参数错误；3 找不到 ntfs-3g；4 找不到 macFUSE；
 #         其他为 ntfs-3g 返回值（14 = Windows 休眠，15 = 未正常卸载）
@@ -184,6 +186,28 @@ unmount)
         die 16 "无法卸载 $mp（可能有程序正在使用该磁盘）"
     rmdir "$mp" 2>/dev/null
     exit 0
+    ;;
+
+setup-passwordless)
+    # 把本脚本复制到 root 拥有的系统目录，并在 sudoers 中只允许该用户免密码运行这一个文件
+    [ $# -eq 2 ] || die 2 "参数个数错误"
+    user="$2"
+    printf '%s' "$user" | grep -Eq '^[A-Za-z0-9._-]+$' || die 2 "非法用户名: $user"
+    id -u "$user" >/dev/null 2>&1 || die 2 "用户不存在: $user"
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "$user" ]; then die 2 "用户与调用者不符"; fi
+    dest=/Library/PrivilegedHelperTools/local.openntfs.helper
+    sudoers=/etc/sudoers.d/openntfs
+    install -d -o root -g wheel -m 755 /Library/PrivilegedHelperTools || exit 1
+    install -o root -g wheel -m 755 "$0" "$dest" || exit 1
+    tmp=$(mktemp /tmp/openntfs.sudoers.XXXXXX) || exit 1
+    printf '%s ALL=(root) NOPASSWD: %s\n' "$user" "$dest" > "$tmp"
+    visudo -cf "$tmp" >/dev/null || { rm -f "$tmp"; die 1 "sudoers 校验失败"; }
+    install -o root -g wheel -m 440 "$tmp" "$sudoers" || { rm -f "$tmp"; exit 1; }
+    rm -f "$tmp"
+    ;;
+
+remove-passwordless)
+    rm -f /etc/sudoers.d/openntfs /Library/PrivilegedHelperTools/local.openntfs.helper
     ;;
 
 *)

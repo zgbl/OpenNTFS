@@ -184,7 +184,7 @@ struct Banner: View {
 
 struct SettingsView: View {
     @EnvironmentObject var monitor: DiskMonitor
-    @AppStorage(Prefs.autoMountKey) private var autoMount = false
+    @AppStorage(Prefs.autoMountKey) private var autoMount = true
     @AppStorage(Prefs.fskitKey) private var useFSKit = true
     @State private var passwordless = Privileged.passwordlessInstalled
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -264,6 +264,7 @@ struct SettingsView: View {
     private func setPasswordless(_ on: Bool) async {
         working = true
         note = nil
+        UserDefaults.standard.set(on, forKey: Prefs.passwordlessKey)
         let r = on ? await Privileged.installPasswordless() : await Privileged.uninstallPasswordless()
         if !r.ok { note = "操作失败：" + (r.stderr.isEmpty ? r.stdout : r.stderr) }
         passwordless = Privileged.passwordlessInstalled

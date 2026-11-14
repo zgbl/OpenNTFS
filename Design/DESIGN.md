@@ -180,6 +180,7 @@ Under FSKit, `f_mntfromname` holds macFUSE's virtual disk (such as `/dev/disk16s
 | Argument injection | Device names must match `^disk[0-9]+s[0-9]+$` and be existing block devices; uid/gid must be digits; mount points must be under `/Volumes/` with no `..`; the ntfs-3g path must end in `/ntfs-3g` |
 | Using the helper to access a non-NTFS disk | `fdmount` uses `diskutil info` to confirm the partition is NTFS; other volumes, such as the system APFS volume, are refused |
 | Privilege escalation through passwordless sudo | sudoers allows only one root-owned file; `fdmount` refuses uid 0 and requires uid to equal `SUDO_UID` |
+| The installed helper going stale after an app update | Before each mount, compare the installed copy with the bundled one; reinstall if they differ (asks for the password once) |
 | Leftover permissions | `/dev` permissions are never changed; the device descriptor closes when the process exits |
 | Data safety | Hibernated or not-cleanly-unmounted volumes are refused by ntfs-3g (exit codes 14/15) and fall back to read-only; a mount that times out kills ntfs-3g and falls back to read-only; on eject, the app waits for ntfs-3g to flush its cache and exit |
 
